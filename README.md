@@ -1,2 +1,2 @@
-# NUKIM-project
-115 專題程式碼 希望能順利畢業
+"# LB_snake" 
+"github: https://github.com/a1113361/LB_snake.git"
