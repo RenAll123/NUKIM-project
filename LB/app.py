@@ -7,6 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from handlers import default, faq, news
 import ollama
 
+ollama.base_url = "http://140.127.220.198:11434"
+
 load_dotenv()
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
@@ -58,5 +60,5 @@ def handle_message(event):
         print("LINE 回覆時發生錯誤：", e)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 8082))
     app.run(host="0.0.0.0", port=port)
