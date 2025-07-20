@@ -36,14 +36,18 @@ def handle_message(event):
             print("NEWS 命中")
         else:
             print("進入 Ollama")
-            response = ollama.chat(
-                model="foodsafety-bot",
-                messages=[{"role": "user", "content": msg}]
-            )
-            print("Ollama 回應：", response)
+            try:
+                response = ollama.chat(
+                    model="foodsafety-bot",
+                    messages=[{"role": "user", "content": msg}]
+                )
+                print("Ollama 回應：", response)
 
-            answer = response['message']['content']
-            reply = TextSendMessage(text=answer)
+                answer = response['message']['content']
+                reply = TextSendMessage(text=answer)
+            except Exception as e:
+                print("Ollama 回應失敗：", e)
+                reply = TextSendMessage(text="Ollama 模型暫時無法回應，請稍後再試。")   
 
     print("最後回傳內容：", reply)
     print("型別：", type(reply))    
