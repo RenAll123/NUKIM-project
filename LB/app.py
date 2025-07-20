@@ -6,13 +6,26 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from handlers import default, faq, news
 import ollama
-
-ollama.base_url = "http://140.127.220.198:11434"
+import requests
 
 load_dotenv()
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
+
+def query_ollama_by_webhook(question: str) -> str:
+    try:
+        res = requests.post(
+            "http://140.127.220.198:8001/ask",  
+            json={"question": question},
+            timeout=15
+        )
+        res.raise_for_status()
+        data = res.json()
+        return data.get("answer", "主機回傳格式有誤。")
+    except Exception as e:
+        print("Webhook 呼叫失敗：", e)
+        return "後端主機暫時無法回應，請稍後再試。"
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -37,19 +50,9 @@ def handle_message(event):
         if reply:
             print("NEWS 命中")
         else:
-            print("進入 Ollama")
-            try:
-                response = ollama.chat(
-                    model="foodsafety-bot",
-                    messages=[{"role": "user", "content": msg}]
-                )
-                print("Ollama 回應：", response)
-
-                answer = response['message']['content']
-                reply = TextSendMessage(text=answer)
-            except Exception as e:
-                print("Ollama 回應失敗：", e)
-                reply = TextSendMessage(text="Ollama 模型暫時無法回應，請稍後再試。")   
+            print("進入 webhook 模式詢問主機")
+            answer = query_ollama_by_webhook(msg)
+            reply = TextSendMessage(text=answer)
 
     print("最後回傳內容：", reply)
     print("型別：", type(reply))    
