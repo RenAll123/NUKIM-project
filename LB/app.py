@@ -35,14 +35,23 @@ def handle_message(event):
         if reply:
             print("NEWS 命中")
         else:
+            print("進入 Ollama")
             response = ollama.chat(
                 model="foodsafety-bot",
                 messages=[{"role": "user", "content": msg}]
             )
+            print("Ollama 回應：", response)
+
             answer = response['message']['content']
             reply = TextSendMessage(text=answer)
 
-    line_bot_api.reply_message(event.reply_token, reply)
+    print("最後回傳內容：", reply)
+    print("型別：", type(reply))    
+    
+    try:
+        line_bot_api.reply_message(event.reply_token, reply)
+    except Exception as e:
+        print("LINE 回覆時發生錯誤：", e)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
