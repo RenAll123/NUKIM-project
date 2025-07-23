@@ -1,18 +1,40 @@
-rom flask import Flask, request, abort
+from flask import Flask, request, abort
 import os
 from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from handlers import default, faq, news
+import requests 
+import re
 import ollama
-
-ollama.base_url = "http://140.127.220.198:11434"
 
 load_dotenv()
 app = Flask(_name_)
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
+
+def ask_ollama(prompt):
+    url = "https://e5c7-2001-b400-e758-e07f-8958-e3e-4a6c-8982.ngrok-free.app/api/generate"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "model": "foodsafety-bot"
+    }
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        print(f"Ollama 回應內容: {response.text}")
+        result = response.json()
+        ai_reply = result.get("response", "很抱歉，AI 回覆失敗了喔。")
+        ai_reply = clean_response(ai_reply)
+        return ai_reply
+    except requests.exceptions.RequestException as e:
+        print(f"Ollama 請求錯誤：{e}")
+        return "很抱歉，無法聯繫 Ollama。"
+    except ValueError as e:
+        print(f"Ollama 回應錯誤：{e}")
+        return "Ollama 回應格式錯誤。"
+
 
 @app.route("/callback", methods=["POST"])
 def callback():
