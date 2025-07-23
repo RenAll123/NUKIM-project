@@ -13,10 +13,9 @@ app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
+# 清理 Ollama 回應內容
 def clean_response(text):
-
     return text.strip()
-
 
 def ask_ollama(prompt): 
     ngrok_url = "https://672476f15a8c.ngrok-free.app"
@@ -32,7 +31,7 @@ def ask_ollama(prompt):
     
     try:
         print(f"嘗試呼叫 Ollama API: {api_endpoint}，傳送 payload: {payload}")
-        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=60)
+        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=180)
         response.raise_for_status() 
 
         print(f"Ollama 原始回應內容: {response.text}")
