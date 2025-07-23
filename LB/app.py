@@ -110,6 +110,6 @@ def handle_message(event):
         print(f"LINE API 錯誤詳細: {e}, Event source: {event.source}, Reply token: {event.reply_token}")
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8082))
+    port = int(os.environ.get("PORT", 11434))
     app.run(host="0.0.0.0", port=port)
 
