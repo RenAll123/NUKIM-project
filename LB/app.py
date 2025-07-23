@@ -18,7 +18,7 @@ def clean_response(text):
     return text.strip()
 
 def ask_ollama(prompt): 
-    api_endpoint = f"https://8ab75007b2fc.ngrok-free.app/api/chat" 
+    api_endpoint = f"http://140.127.220.198:11434/api/chat" 
 
     headers = {"Content-Type": "application/json"}
    
