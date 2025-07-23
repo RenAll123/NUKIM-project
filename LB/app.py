@@ -18,7 +18,7 @@ def clean_response(text):
     return text.strip()
 
 def ask_ollama(prompt): 
-    ngrok_url = "https://672476f15a8c.ngrok-free.app"
+    ngrok_url = "https://metal-walls-itch.loca.lt"
     api_endpoint = f"{ngrok_url}/api/chat" 
 
     headers = {"Content-Type": "application/json"}
