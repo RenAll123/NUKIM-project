@@ -15,7 +15,7 @@ line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 def ask_ollama(prompt):
-    url = "https://672476f15a8c.ngrok-free.app /api/generate"
+    url = "https://672476f15a8c.ngrok-free.app/api/generate"
     headers = {"Content-Type": "application/json"}
     data = {
         "model": "foodsafety-bot"
