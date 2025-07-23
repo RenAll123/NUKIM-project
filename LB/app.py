@@ -7,7 +7,6 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from handlers import default, faq, news
 import requests 
 import re
-import ollama
 
 load_dotenv()
 app = Flask(_name_)
@@ -15,12 +14,16 @@ line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 def ask_ollama(prompt):
-    url = "https://672476f15a8c.ngrok-free.app/api/generate"
+    ngrok_url = "https://672476f15a8c.ngrok-free.app"
+    api_endpoint = f"{ngrok_url}/api/chat" 
     headers = {"Content-Type": "application/json"}
-    data = {
-        "model": "foodsafety-bot"
+    payload = {
+        "model": "foodsafety-bot",
+        "messages": [{"role": "user", "content": prompt_text}],
+        "stream": False
     }
-    try:
+
+     try:
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         print(f"Ollama 回應內容: {response.text}")
@@ -61,18 +64,16 @@ def handle_message(event):
         else:
             print("進入 Ollama")
             try:
-                response = ollama.chat(
-                    model="foodsafety-bot",
-                    messages=[{"role": "user", "content": msg}]
-                )
-                print("Ollama 回應：", response)
-
-                answer = response['message']['content']
-                reply = TextSendMessage(text=answer)
+                ollama_response_text = ask_ollama(msg)
+                reply_content = ollama_response_text
             except Exception as e:
                 print("Ollama 回應失敗：", e)
-                reply = TextSendMessage(text="Ollama 模型暫時無法回應，請稍後再試。")   
+                reply_content = "Ollama 模型暫時無法回應，請稍後再試。"   
+    
+    if reply_content is None:
+        reply_content = "很抱歉，我無法理解您的問題，請嘗試其他問題。"
 
+    final_reply_message = TextSendMessage(text=reply_content)
     print("最後回傳內容：", reply)
     print("型別：", type(reply))    
     
