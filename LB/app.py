@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from handlers import default, faq, news 
 import requests 
 import re
@@ -98,11 +98,7 @@ def handle_message(event):
     if reply_content is None:
         reply_content = "很抱歉，我無法理解您的問題，請嘗試其他問題。"
 
-    if isinstance(reply_content, (TextSendMessage, FlexSendMessage)):
-        final_reply_message = reply_content
-    else:
-        final_reply_message = TextSendMessage(text=reply_content)
-
+    final_reply_message = TextSendMessage(text=reply_content)
     print("最後回傳內容：", final_reply_message)
     print("型別：", type(final_reply_message))
     
