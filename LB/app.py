@@ -110,7 +110,7 @@ def handle_message(event):
                 ollama_response_text = ask_ollama(user_id, msg)
                 reply_content = ollama_response_text
                 # 存模型回覆
-                 add_message(user_id, "assistant", reply_content)
+                add_message(user_id, "assistant", reply_content)
             except Exception as e:
                 print(f"呼叫 ask_ollama 失敗：{e}")
                 reply_content = "Ollama 模型暫時無法回應，請稍後再試。"
