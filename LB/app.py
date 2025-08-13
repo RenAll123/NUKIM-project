@@ -3,15 +3,16 @@ import os
 from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from handlers import default, faq, news
 import requests
-import re
+from threading import Thread
 from memory import init_db, get_db, close_db, add_message, fetch_history
 
 load_dotenv()
 app = Flask(__name__)
 
+# 初始化 DB
 @app.before_request
 def before_request():
     init_db()
@@ -24,13 +25,12 @@ def teardown(_=None):
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
-# 清理 Ollama 回應內容
+# 清理 Ollama 回應
 def clean_response(text):
     return text.strip()
 
 def ask_ollama(user_id, prompt):
     api_endpoint = "http://localhost:11434/api/chat"
-
     history = fetch_history(user_id, limit_pairs=8)
     messages = history + [{"role": "user", "content": prompt}]
 
@@ -38,38 +38,25 @@ def ask_ollama(user_id, prompt):
     payload = {
         "model": "foodsafety-bot",
         "messages": messages,
-        "stream": True
+        "stream": False
     }
 
     try:
-        print(f"嘗試呼叫 Ollama API: {api_endpoint}，傳送 payload: {payload}")
         response = requests.post(api_endpoint, headers=headers, json=payload, timeout=180)
         response.raise_for_status()
-
-        print(f"Ollama 原始回應內容: {response.text}")
         result = response.json()
 
         if "message" in result and "content" in result["message"]:
-            ai_reply = result["message"]["content"]
-            return clean_response(ai_reply)
+            return clean_response(result["message"]["content"])
         else:
-            print(f"Ollama 回應格式不符合預期或內容缺失: {result}")
             return "很抱歉，Ollama 回應格式錯誤或內容缺失。"
 
     except requests.exceptions.Timeout:
-        print("Ollama 請求超時。")
         return "很抱歉，Ollama 回應超時，請稍後再試。"
-    except requests.exceptions.ConnectionError as e:
-        print(f"Ollama 連線錯誤：{e}")
-        return "很抱歉，無法連線到 Ollama 服務，請檢查服務是否啟動。"
-    except requests.exceptions.HTTPError as e:
-        print(f"Ollama HTTP 錯誤：{e.response.status_code} - {e.response.text}")
-        return f"Ollama 服務錯誤：{e.response.status_code}，請檢查 Ollama 主機。"
-    except ValueError as e:
-        print(f"Ollama 回應 JSON 解析錯誤：{e}")
-        return "Ollama 回應格式錯誤，無法解析。"
+    except requests.exceptions.ConnectionError:
+        return "很抱歉，無法連線到 Ollama 服務，請確認 Ollama 是否啟動。"
     except Exception as e:
-        print(f"呼叫 Ollama 時發生未預期錯誤：{e}")
+        print(f"Ollama 呼叫錯誤: {e}")
         return "很抱歉，Ollama 服務發生未知錯誤。"
 
 @app.route("/callback", methods=["POST"])
@@ -79,71 +66,41 @@ def callback():
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        print("LINE Signature 驗證失敗，請求被拒絕。")
         abort(400)
     return "OK", 200
+
+def process_message(user_id, msg):
+    with app.app_context():  # Thread 中建立 Flask 上下文
+        try:
+            add_message(user_id, "user", msg)
+
+            # 先處理 FAQ / NEWS
+            reply_content = faq.handle(msg)
+            if not reply_content:
+                reply_content = news.handle(msg)
+
+            # 若無命中，呼叫 Ollama
+            if not reply_content:
+                ollama_reply = ask_ollama(user_id, msg)
+                reply_content = ollama_reply
+                add_message(user_id, "assistant", ollama_reply)
+
+            line_bot_api.push_message(user_id, TextSendMessage(text=str(reply_content)))
+        except Exception as e:
+            print(f"Thread 處理訊息錯誤: {e}")
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text
-    
     user_id = event.source.user_id
-
-    # 先回應處理中
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="處理中，請稍候..."))
-
-    def process_message():
-        add_message(user_id, "user", msg)
-        ollama_response_text = ask_ollama(user_id, msg)
-        add_message(user_id, "assistant", ollama_response_text)
-        line_bot_api.push_message(user_id, TextSendMessage(text=ollama_response_text))
-
-    Thread(target=process_message).start()
 
     print(f"收到訊息：{repr(msg)}")
 
-    reply_content = None
+    # 立即回覆「處理中」避免 webhook 超時
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="處理中，請稍候..."))
 
-    # FAQ 模組處理
-    reply_content = faq.handle(msg)
-    if reply_content:
-        print("FAQ 命中")
-    else:
-        reply_content = news.handle(msg)
-        if reply_content:
-            print("NEWS 命中")
-        else:
-            print("進入 Ollama 處理")
-            user_id = event.source.user_id
-
-            # 存使用者訊息
-            add_message(user_id, "user", msg)
-
-            try:
-                ollama_response_text = ask_ollama(user_id, msg)
-                reply_content = ollama_response_text
-                # 存模型回覆
-                add_message(user_id, "assistant", reply_content)
-            except Exception as e:
-                print(f"呼叫 ask_ollama 失敗：{e}")
-                reply_content = "Ollama 模型暫時無法回應，請稍後再試。"
-
-    if reply_content is None:
-        reply_content = "很抱歉，我無法理解您的問題，請嘗試其他問題。"
-
-    if isinstance(reply_content, (TextSendMessage, FlexSendMessage)):
-        final_reply_message = reply_content
-    else:
-        final_reply_message = TextSendMessage(text=str(reply_content))
-
-    print("最後回傳內容：", final_reply_message)
-    print("型別：", type(final_reply_message))
-
-    try:
-        line_bot_api.reply_message(event.reply_token, final_reply_message)
-    except Exception as e:
-        print(f"LINE 回覆時發生錯誤：{e}")
-        print(f"LINE API 錯誤詳細: {e}, Event source: {event.source}, Reply token: {event.reply_token}")
+    # 背景 Thread 處理
+    Thread(target=process_message, args=(user_id, msg)).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8082))
