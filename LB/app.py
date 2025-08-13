@@ -7,9 +7,20 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendM
 from handlers import default, faq, news 
 import requests 
 import re
+from memory import init_db, get_db, close_db, add_message, fetch_history
+
 
 load_dotenv()
 app = Flask(__name__)
+@app.before_request
+def before_request():
+    init_db()
+    get_db()
+
+@app.teardown_appcontext
+def teardown(_=None):
+    close_db()
+
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
@@ -20,11 +31,14 @@ def clean_response(text):
 def ask_ollama(prompt): 
     api_endpoint = f"http://localhost:11434/api/chat" 
 
+    history = fetch_history(user_id, limit_pairs=8)
+    messages = history + [{"role": "user", "content": prompt}]
+
     headers = {"Content-Type": "application/json"}
    
     payload = {
         "model": "foodsafety-bot",
-        "messages": [{"role": "user", "content": prompt}], 
+        "messages": messages, 
         "stream": False 
     }
     
@@ -87,13 +101,19 @@ def handle_message(event):
             print("NEWS 命中")
         else:
             print("進入 Ollama 處理")
+            user_id = event.source.user_id
+
+            # 存使用者訊息
+            add_message(user_id, "user", msg)
+            
             try:
-                ollama_response_text = ask_ollama(msg)
+                ollama_response_text = ask_ollama(user_id, msg)
                 reply_content = ollama_response_text
+                # 存模型回覆
+                 add_message(user_id, "assistant", reply_content)
             except Exception as e:
                 print(f"呼叫 ask_ollama 失敗：{e}")
                 reply_content = "Ollama 模型暫時無法回應，請稍後再試。"
-    
     
     if reply_content is None:
         reply_content = "很抱歉，我無法理解您的問題，請嘗試其他問題。"
