@@ -131,6 +131,36 @@ def handle_message(event):
         print(f"LINE 回覆時發生錯誤：{e}")
         print(f"LINE API 錯誤詳細: {e}, Event source: {event.source}, Reply token: {event.reply_token}")
 
+@app.route("/show_history", methods=["GET"])
+def show_history():
+    from flask import request
+
+    user_id = request.args.get("user_id")  # 可選，網址帶 ?user_id=xxxx
+    conn = get_db()
+    c = conn.cursor()
+    
+    if user_id:
+        c.execute("SELECT role, message, timestamp FROM conversations WHERE user_id=? ORDER BY timestamp", (user_id,))
+    else:
+        c.execute("SELECT user_id, role, message, timestamp FROM conversations ORDER BY timestamp")
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    # 簡單用 HTML 顯示
+    html = "<h2>對話紀錄</h2><table border='1' style='border-collapse: collapse;'>"
+    if user_id:
+        html += "<tr><th>角色</th><th>訊息</th><th>時間</th></tr>"
+        for role, message, ts in rows:
+            html += f"<tr><td>{role}</td><td>{message}</td><td>{ts}</td></tr>"
+    else:
+        html += "<tr><th>使用者ID</th><th>角色</th><th>訊息</th><th>時間</th></tr>"
+        for uid, role, message, ts in rows:
+            html += f"<tr><td>{uid}</td><td>{role}</td><td>{message}</td><td>{ts}</td></tr>"
+    html += "</table>"
+    
+    return html
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8082))
     app.run(host="0.0.0.0", port=port)
