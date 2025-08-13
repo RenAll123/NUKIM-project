@@ -23,31 +23,33 @@ def clean_response(text):
 # 呼叫 Ollama（背景 Thread 專用）
 def call_ollama_and_push(user_id, prompt):
     """背景呼叫 Ollama，完成後用 push_message 發送"""
-    try:
-        history = fetch_history(user_id, limit_pairs=4)
-        messages = history + [{"role": "user", "content": prompt}]
-        payload = {"model": "foodsafety-bot", "messages": messages, "stream": False}
-        api_endpoint = "http://127.0.0.1:11434/api/chat"
+    with app.app_context():  # 🔹 手動建立 Flask Application Context
+        try:
+            history = fetch_history(user_id, limit_pairs=4)
+            messages = history + [{"role": "user", "content": prompt}]
+            payload = {"model": "foodsafety-bot", "messages": messages, "stream": False}
+            api_endpoint = "http://127.0.0.1:11434/api/chat"
 
-        response = requests.post(api_endpoint, json=payload, timeout=600)
-        response.raise_for_status()
-        data = response.json()
+            response = requests.post(api_endpoint, json=payload, timeout=600)
+            response.raise_for_status()
+            data = response.json()
 
-        # 兼容不同格式
-        if "message" in data and "content" in data["message"]:
-            answer = clean_response(data["message"]["content"])
-        elif "messages" in data and len(data["messages"])>0:
-            answer = clean_response(data["messages"][-1].get("content",""))
-        else:
-            answer = "很抱歉，Ollama 回應格式錯誤或內容缺失。"
+            # 兼容不同格式
+            if "message" in data and "content" in data["message"]:
+                answer = clean_response(data["message"]["content"])
+            elif "messages" in data and len(data["messages"]) > 0:
+                answer = clean_response(data["messages"][-1].get("content", ""))
+            else:
+                answer = "很抱歉，Ollama 回應格式錯誤或內容缺失。"
 
-        # 存入資料庫
-        add_message(user_id, "assistant", answer)
-        # 推送給使用者
-        line_bot_api.push_message(user_id, TextSendMessage(text=answer))
+            # 存入資料庫
+            add_message(user_id, "assistant", answer)
 
-    except Exception as e:
-        line_bot_api.push_message(user_id, TextSendMessage(text=f"Ollama 回覆失敗: {e}"))
+            # 推送給使用者
+            line_bot_api.push_message(user_id, TextSendMessage(text=answer))
+
+        except Exception as e:
+            line_bot_api.push_message(user_id, TextSendMessage(text=f"Ollama 回覆失敗: {e}"))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
