@@ -6,7 +6,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
 from linebot.exceptions import InvalidSignatureError
 from handlers import faq, news
-from memory import add_message, fetch_history
+from memory import init_db, add_message, fetch_history
 
 import requests
 
@@ -15,6 +15,10 @@ app = Flask(__name__)
 
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
+
+# 啟動時初始化資料庫（建立表，不會清空資料）
+with app.app_context():
+    init_db()
 
 # 清理模型回覆
 def clean_response(text):
@@ -71,13 +75,13 @@ def handle_message(event):
     # 走 Ollama 流程
     add_message(user_id, "user", msg)
 
-    # 1️⃣ 立即回覆「處理中」
+    # 立即回覆「處理中」
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(text="🔄 處理中，請稍候...")
     )
 
-    # 2️⃣ 背景呼叫 Ollama
+    # 背景呼叫 Ollama
     threading.Thread(target=call_ollama_and_push, args=(user_id, msg)).start()
 
 @app.route("/callback", methods=["POST"])
