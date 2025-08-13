@@ -38,7 +38,7 @@ def ask_ollama(user_id, prompt):
     payload = {
         "model": "foodsafety-bot",
         "messages": messages,
-        "stream": False
+        "stream": True
     }
 
     try:
@@ -86,6 +86,20 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text
+    
+    user_id = event.source.user_id
+
+    # 先回應處理中
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="處理中，請稍候..."))
+
+    def process_message():
+        add_message(user_id, "user", msg)
+        ollama_response_text = ask_ollama(user_id, msg)
+        add_message(user_id, "assistant", ollama_response_text)
+        line_bot_api.push_message(user_id, TextSendMessage(text=ollama_response_text))
+
+    Thread(target=process_message).start()
+
     print(f"收到訊息：{repr(msg)}")
 
     reply_content = None
