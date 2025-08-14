@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot.exceptions import InvalidSignatureError
-from handlers import faq, news
+from handlers import faq, news_1
 from memory import init_db, add_message, fetch_history
 import requests
 import json
@@ -103,4 +103,5 @@ def callback():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8082))
     app.run(host="0.0.0.0", port=port)
+
 
