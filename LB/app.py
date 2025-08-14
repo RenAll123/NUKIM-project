@@ -3,12 +3,12 @@ import os
 import threading
 from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot.exceptions import InvalidSignatureError
 from handlers import faq, news
 from memory import init_db, add_message, fetch_history
-
 import requests
+import json
 
 load_dotenv()
 app = Flask(__name__)
@@ -24,32 +24,38 @@ with app.app_context():
 def clean_response(text):
     return text.strip()
 
-# 呼叫 Ollama（背景 Thread 專用）
+# 呼叫 Ollama（背景 Thread，串流 + 限制歷史對話）
 def call_ollama_and_push(user_id, prompt):
-    """背景呼叫 Ollama，完成後用 push_message 發送"""
-    with app.app_context():  # 🔹 手動建立 Flask Application Context
+    with app.app_context():
         try:
+            # 限制歷史對話為最近 4 對話
             history = fetch_history(user_id, limit_pairs=4)
             messages = history + [{"role": "user", "content": prompt}]
-            payload = {"model": "foodsafety-bot", "messages": messages, "stream": False}
+
+            payload = {
+                "model": "foodsafety-bot",
+                "messages": messages,
+                "stream": True  # 串流模式
+            }
+
             api_endpoint = "http://127.0.0.1:11434/api/chat"
+            response = requests.post(api_endpoint, json=payload, stream=True, timeout=600)
 
-            response = requests.post(api_endpoint, json=payload, timeout=600)
-            response.raise_for_status()
-            data = response.json()
+            answer = ""
+            for line in response.iter_lines():
+                if line:
+                    data = json.loads(line.decode("utf-8"))
+                    if "message" in data and "content" in data["message"]:
+                        partial = data["message"]["content"]
+                        answer += partial
+                        # 可選：即時邊推送部分回覆
+                        # line_bot_api.push_message(user_id, TextSendMessage(text=partial))
 
-            # 兼容不同格式
-            if "message" in data and "content" in data["message"]:
-                answer = clean_response(data["message"]["content"])
-            elif "messages" in data and len(data["messages"]) > 0:
-                answer = clean_response(data["messages"][-1].get("content", ""))
-            else:
-                answer = "很抱歉，Ollama 回應格式錯誤或內容缺失。"
+            answer = clean_response(answer)
 
             # 存入資料庫
             add_message(user_id, "assistant", answer)
-
-            # 推送給使用者
+            # 推送完整回覆
             line_bot_api.push_message(user_id, TextSendMessage(text=answer))
 
         except Exception as e:
