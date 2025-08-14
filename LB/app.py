@@ -9,7 +9,6 @@ from handlers import faq, news
 from memory import init_db, add_message, fetch_history
 import requests
 import json
-import time
 
 load_dotenv()
 app = Flask(__name__)
@@ -29,51 +28,39 @@ def clean_response(text):
 def call_ollama_and_push(user_id, prompt):
     with app.app_context():
         try:
-            history = fetch_history(user_id, limit_pairs=2)  # 限制歷史對話
+            # 限制歷史對話為最近 4 對話
+            history = fetch_history(user_id, limit_pairs=4)
             messages = history + [{"role": "user", "content": prompt}]
+
             payload = {
                 "model": "foodsafety-bot",
                 "messages": messages,
-                "stream": True
+                "stream": True  # 串流模式
             }
+
             api_endpoint = "http://127.0.0.1:11434/api/chat"
             response = requests.post(api_endpoint, json=payload, stream=True, timeout=600)
 
-            buffer = ""        # 暫存部分文字
-            answer = ""        # 最終完整回答
-            last_push = time.time()
-
+            answer = ""
             for line in response.iter_lines():
                 if line:
                     data = json.loads(line.decode("utf-8"))
                     if "message" in data and "content" in data["message"]:
                         partial = data["message"]["content"]
-                        buffer += partial
                         answer += partial
+                        # 可選：即時邊推送部分回覆
+                        # line_bot_api.push_message(user_id, TextSendMessage(text=partial))
 
-                        # 每累積 30 個字或超過 1 秒就推送一次
-                        if len(buffer) >= 30 or (time.time() - last_push) >= 1:
-                            line_bot_api.push_message(
-                                user_id,
-                                TextSendMessage(text=buffer)
-                            )
-                            buffer = ""
-                            last_push = time.time()
+            answer = clean_response(answer)
 
-            # 推送剩下的文字
-            if buffer:
-                line_bot_api.push_message(
-                    user_id,
-                    TextSendMessage(text=buffer)
-                )
-
-            # 存入資料庫完整回答
+            # 存入資料庫
             add_message(user_id, "assistant", answer)
+            # 推送完整回覆
+            line_bot_api.push_message(user_id, TextSendMessage(text=answer))
 
         except Exception as e:
             line_bot_api.push_message(user_id, TextSendMessage(text=f"Ollama 回覆失敗: {e}"))
 
-            
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text
