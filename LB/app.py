@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot.exceptions import InvalidSignatureError
-from handlers import faq, news_1
+from handlers import faq, news_1 as news
 from memory import init_db, add_message, fetch_history
 import requests
 import json
