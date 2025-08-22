@@ -33,7 +33,7 @@ def call_ollama_and_push(user_id, prompt):
             messages = history + [{"role": "user", "content": prompt}]
 
             payload = {
-                "model": "foodsafety-bot",
+                "model": "foodsafety_small",
                 "messages": messages,
                 "stream": True  # 串流模式
             }
@@ -84,7 +84,7 @@ def handle_message(event):
     # 立即回覆「處理中」
     line_bot_api.reply_message(
         event.reply_token,
-        TextSendMessage(text="🔄 處理中，請稍候...")
+        TextSendMessage(text="處理中，請稍候...")
     )
 
     # 背景呼叫 Ollama
@@ -103,5 +103,4 @@ def callback():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8082))
     app.run(host="0.0.0.0", port=port)
-
 
