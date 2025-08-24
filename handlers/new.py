@@ -110,7 +110,7 @@ def handle(msg: str):
     if not items:
         return None
     bubbles = [to_bubble(it, i) for i, it in enumerate(items)]
-    return FlexSendMessage(alt_text="最新食品新聞", contents=CarouselContainer(contents=bubbles))
+    return FlexSendMessage(alt_text="最新新聞", contents=CarouselContainer(contents=bubbles))
 
 # ===== 本機測試 =====
 if __name__ == "__main__":
